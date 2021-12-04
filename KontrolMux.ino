@@ -1,91 +1,95 @@
+//#include <Adafruit_GFX.h>
+//#include <RGBmatrixPanel.h>
+
+//#define F2(progmem_ptr) (const __FlashStringHelper *)progmem_ptr
 
 
-#include <SmartMatrix3.h>
 
 
+//#define CLK 11   // USE THIS ON ARDUINO MEGA
+//#define OE   9
+//#define LAT 10
+//#define A   A0
+//#define B   A1
+//#define C   A2
+//#define D   A3
 
-#define COLOR_DEPTH 24                  // known working: 24, 48 - If the sketch uses type `rgb24` directly, COLOR_DEPTH must be 24
-const uint8_t kMatrixWidth = 64;        // known working: 32, 64, 96, 128
-const uint8_t kMatrixHeight = 32;       // known working: 16, 32, 48, 64
-const uint8_t kRefreshDepth = 36;       // known working: 24, 36, 48
-const uint8_t kDmaBufferRows = 2;       // known working: 2-4, use 2 to save memory, more to keep from dropping frames and automatically lowering refresh rate
-const uint8_t kPanelType = SMARTMATRIX_HUB75_32ROW_MOD16SCAN;   // use SMARTMATRIX_HUB75_16ROW_MOD8SCAN for common 16x32 panels
-const uint8_t kMatrixOptions = (SMARTMATRIX_OPTIONS_NONE);      // see http://docs.pixelmatix.com/SmartMatrix for options
-const uint8_t kScrollingLayerOptions = (SM_SCROLLING_OPTIONS_NONE);
-const uint8_t kIndexedLayerOptions = (SM_INDEXED_OPTIONS_NONE);
-
-SMARTMATRIX_ALLOCATE_BUFFERS(matrix, kMatrixWidth, kMatrixHeight, kRefreshDepth, kDmaBufferRows, kPanelType, kMatrixOptions);
-SMARTMATRIX_ALLOCATE_SCROLLING_LAYER(scrollingLayer, kMatrixWidth, kMatrixHeight, COLOR_DEPTH, kScrollingLayerOptions);
-SMARTMATRIX_ALLOCATE_SCROLLING_LAYER(scrollingLayer2, kMatrixWidth, kMatrixHeight, COLOR_DEPTH, kScrollingLayerOptions);
-SMARTMATRIX_ALLOCATE_INDEXED_LAYER(indexedLayer, kMatrixWidth, kMatrixHeight, COLOR_DEPTH, kIndexedLayerOptions);
-
-const int defaultBrightness = (20*255)/100;        // full (100%) brightness
-//const int defaultBrightness = (15*255)/100;       // dim: 15% brightness
-const int defaultScrollOffset = 6;
-const rgb24 defaultBackgroundColor = {0, 100, 0};
+//RGBmatrixPanel matrix(A, B, C, D, CLK, LAT, OE, true, 64);
+//
+//
+//uint16_t myRED = matrix.Color333(7,0,0);
+//uint16_t myGREEN = matrix.Color333(0,7,0);
+//uint16_t myBLUE = matrix.Color333(0,0,7);
+//uint16_t myWHITE = matrix.Color333(7, 7,7);
 
 
 
 int A_1 = 4;
 int B_1 = 5;
 
-//String dataku;
+String data;
 String dt[20];
 boolean parsing = false;
 int minLength = 0;
 
-char sped[15],heading[15], win[15];
-char dis_sped[15],disp_head[15], disp_win[15];
+char heading[15], win[15];
 
-int k;
 float d_head;
 float d_win;
-float d_sped;
+
 String s_heading;
 float f_heading=0;
 String dataku;
+int textX1 = 14;
+
+int8_t ball[3][4] = {
+  {  3,  0,  1,  1 }, // Initial X,Y pos & velocity for 3 bouncy balls
+  { 17, 15,  1, -1 },
+  { 27,  4, -1,  1 }
+};
+static const uint16_t PROGMEM ballcolor[3] = {
+  0x0080, // Green=1
+  0x0002, // Blue=1
+  0x1000  // Red=1
+};
+
 
 
 
 void setup() {
   // put your setup code here, to run once:
-
   Serial.begin(4800);
- // Serial1.begin(4800);
+  Serial1.begin(4800);
   pinMode( A_1, OUTPUT);
   pinMode( B_1, OUTPUT);
   digitalWrite(A_1,LOW);
   digitalWrite(B_1, LOW);
-  matrix.addLayer(&scrollingLayer);
-  matrix.addLayer(&scrollingLayer2);
-  matrix.addLayer(&indexedLayer);
-  matrix.begin();  
-  matrix.setBrightness((30*255)/100);
+ // matrix.begin();
+//  matrix.setTextWrap(false); // Allow text to run off right edge
+//  matrix.setTextSize(1);
 
 }
 
 void loop() {
-ready_todraw();
+  // put your main code here, to run repeatedly:
   if (parsing) {
     parsingdata();
-   // display_data();
-    dataku = "";
+//    display_data();
+    data = "";
     parsing = false;
 
 
   }
 
-
-
 }
 
 void serialEvent1() {
-  while (Serial.available()) {
-    dataku = readString();
-    Serial.print(dataku);
-//    if (inChar == '\n') {
-//      parsing = true;
-//    }
+  while (Serial1.available()) {
+    char inChar = (char)Serial1.read();
+    data += inChar;
+    if (inChar == '\n') {
+      parsing = true;
+    }
   }
 }
 
@@ -93,76 +97,90 @@ void parsingdata()
 {
   
   int j = 0;
-
+  int k = 0;
   dt[j] = "";
   int minLength;
-  if (dataku.length() > 70) {
+  if (data.length() > 70) {
     minLength = 20;
   }
   else                      {
     minLength = 0;
   }
-  for (k = 1; k < dataku.length() - minLength ; k++) {
-    if ((dataku[k] == '$') || (dataku[k] == ',' ) || (dataku[k] == '*' ) ) {
+  for (k = 1; k < data.length() - minLength ; k++) {
+    if ((data[k] == '$') || (data[k] == ',' ) || (data[k] == '*' ) ) {
       j++;
       dt[j] = "";
     }
     else {
-      dt[j] = dt[j] + dataku[k];
+      dt[j] = dt[j] + data[k];
     }
   }
 
-  if (dt[0]=="GPHDT") {
+  if (dt[0].charAt(4)=='T') {
     //dt[1].toCharArray(heading,15);
-      Serial.print(dataku);
-   // d_head=dt[1].toFloat();
-//    digitalWrite(A_1, HIGH);
-//    digitalWrite(B_1, LOW);
-    
+    d_head=dt[1].toFloat();
+    digitalWrite(A_1, HIGH);
+    digitalWrite(B_1, LOW);
+  
 
   }
 
-//  else if (dt[0].charAt(4) == 'V') {
-//    //Serial.println(data);
-//    dt[1].toCharArray(win,15);
-//    //d_win = dt[1].toFloat();
-//    digitalWrite(A_1, LOW);
-//    digitalWrite(B_1, HIGH);
-//  }
-//
-//  else if (dt[0].charAt(4) == 'W' ) {
-//    //d_sped = dt[5].toFloat();
-//    dt[1].toCharArray(sped,15); 
-//    digitalWrite(A_1, LOW);
-//    digitalWrite(B_1, LOW);
-//  }
-}
+  else if (dt[0].charAt(4) == 'V') {
+    Serial.println(data);
+    //dt[1].toCharArray(win,15);
+    //d_win = dt[1].toFloat();
+    digitalWrite(A_1, LOW);
+    digitalWrite(B_1, LOW);
+  }
 
+  else if (dt[0] == "GPRMC" ) {
+    Serial.println(data);
+    digitalWrite(A_1, HIGH);
+    digitalWrite(B_1, HIGH);
+  }
+  else if (dt[0] == "WIMWV" ) {
+    Serial.println(data);
+    digitalWrite(A_1, LOW);
+    digitalWrite(B_1, LOW);
+  }
+
+
+
+
+
+}
+/*
 void display_data(){
-//      sprintf(disp_head, "%d",heading);
-//      Serial.print(disp_head);
-//      sprintf(tanggalhijriah, "%d %s %d", Hjr_Date, bulanHijriah[Hjr_Month], Hjr_Year);
-//      sprintf(tanggalmasehi, "%d %s %d", rTgl, bulanMasehi[rBul], rTah);
- 
-      indexedLayer.fillScreen(0);
-      indexedLayer.drawString(27, 1, 1, sped);
-      indexedLayer.drawString(27, 12, 1, disp_head);
-      indexedLayer.drawString(27, 22, 1, win);
-      indexedLayer.swapBuffers();
+    matrix.fillScreen(matrix.Color333(0, 0, 0));
+    matrix.setCursor(3,1);
+    matrix.setTextColor(myWHITE);
+    matrix.setFont();
+    matrix.print("SPD:");
+    
+    
+    
+    
+    //heading
+    matrix.setCursor(3,12);
+    matrix.setFont();
+    matrix.setTextColor(myWHITE);
+    matrix.print("HDG:");
+    matrix.setCursor(27,12);
+    matrix.setTextColor(myWHITE);
+    matrix.setFont();
+    matrix.print(d_head);
+    //speed
+    matrix.setCursor(3,22);
+    matrix.setTextColor(myWHITE);
+    matrix.setFont();
+    matrix.print("WIN:"); 
+    matrix.setCursor(27,22);
+    matrix.setTextColor(myWHITE);
+    matrix.setFont();
+    matrix.print(d_win);
+    matrix.swapBuffers(false);
+
+
   
 }
-void ready_todraw()
-
-{
-
-      indexedLayer.fillScreen(0);
-      indexedLayer.setFont(font6x10);
-      indexedLayer.drawString(3, 1, 1, "SPD");
-      indexedLayer.drawString(3, 12, 1, "HDT");
-      indexedLayer.drawString(3, 22, 1, "WIN");
-      indexedLayer.drawString(23, 0, 1, ":");
-      indexedLayer.drawString(23, 11, 1, ":");
-      indexedLayer.drawString(23, 21, 1, ":");
-      indexedLayer.swapBuffers();
-  
-}
+*/
